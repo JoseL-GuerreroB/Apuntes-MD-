@@ -568,6 +568,170 @@ module.exports = router;
 ### En index.js
 ```js
 app.use("/", require('.routes/home.routes'));
-//Ruta adiciona "/" --> no hay ruta adicional
+//Ruta adicional "/" --> no hay ruta adicional
 //Importacion de las rutas del documento
 ```
+---
+## CRUD con Mongoose
+Mas detalles en MongoDB_Mongoose.md
+```
+npm i mongoose
+```
+### Variables de entorno (.env)
+
+En el archivo se asignan variables importantes como la conexion a la base de datos, estas variables no deben de compartirse. Se crea un documento **.env** para comenzar y se instala el modulo **dotenv** *(gestiona las variables de entorno)*.
+
+```
+npm i dotenv
+```
+```js
+require("dotenv").config(); //Por defecto
+//En config(Ruta de la variable)
+```
+
+En el archivo **.env**
+```env
+URLMongoDB = mongodb+srv://<nombreUsuario>:<password>@cluster0.vs8iz.mongodb.net/<nombreDB>
+```
+
+### Conectar base de datos
+En un archivo db.js dentro de una carpeta database.
+
+En database/db.js
+```js
+const mongoose = require("mongoose");
+
+mongoose.connect(process.env.URLMongoDB)
+  .then(()=> console.log("Base de datos conectada"))
+  .catch((e)=> console.log("Fallo la conexión"+e));
+```
+
+En index.js
+```js
+require("./database/db");
+```
+
+### Creación de modelo de datos
+Se crea un archivo esquema.js dentro de la carpeta models
+
+En models/esquema.js
+```js
+const {Schema, model} = require('mongoose'); 
+const EsquemaDB = mongoose.Schema({
+    atributo: {
+      type: String, //tipo string
+      unique: true, //valor unico verdadero
+      required: true, //requerido verdadero
+      default: Date.now() //La fecha como valor por defecto
+    }
+})
+module.exports= mongoose.model('Esquema',EsquemaDB); 
+```
+### CRUD
+En controllers/esquemaControllers.js
+
+```js
+const Esquema = require("../models/Esquema");
+//Requiere el modelo del esquema esquema
+
+exports.crearEsquema= async(req,res) =>{ 
+
+    try{
+        let esquema;
+        esquema= new Esquema(req.body);
+        await esquema.save();
+        res.send(esquema);
+
+    }catch(err){
+        console.error(err);
+        res.status(500).send('Hubo un error');
+    }
+}
+
+exports.obtenerEsquemas= async(req,res) =>{
+    try{
+        const esquemas = await Esquema.find();
+        res.json(esquemas);
+    }catch(err){
+        console.log(err);
+        res.status(500).send('Hubo un error');
+    }
+}
+
+exports.actualizarEsquema= async(req,res) =>{
+    try{
+        const { Nombre, Escuela, Grupo, Boleta } = req.body;
+        let esquema = await Esquema.findById(req.params.id);
+        if (!esquema){
+            res.status(404).json( {msg:'No existe el esquema'});
+        }
+        esquema.Nombre = Nombre;
+        esquema.Escuela = Escuela;
+        esquema.Grupo = Grupo;
+        esquema.Boleta = Boleta;
+
+        esquema = await Esquema.findOneAndUpdate({ _id: req.params.id }, esquema,{new: true});
+        res.json(esquema);
+    }catch(err){
+        console.log(err);
+        res.status(500).send('Hubo un error');
+    }
+}
+
+exports.obtenerEsquema= async(req,res) =>{
+    try{
+        let esquema = await Esquema.findById(req.params.id);
+        if (!esquema){
+            res.status(404).json( {msg:'No existe el esquema'});
+        }
+        res.json(esquema);
+    }catch(err){
+        console.log(err);
+        res.status(500).send('Hubo un error');
+    }
+}
+
+exports.eliminarEsquema= async(req,res) =>{
+    try{
+        let esquema = await Esquema.findById(req.params.id);
+        if (!esquema){
+            res.status(404).json( {msg:'No existe el esquema'});
+        }
+        await Esquema.findOneAndRemove({ _id: req.params.id });
+        res.json({msg: "El esquema fue eliminado"});
+    }catch(err){
+        console.log(err);
+        res.status(500).send('Hubo un error');
+    }
+}
+```
+
+---
+
+## Crear Middleware
+
+En routes/home.routes.js
+```js
+const express = require('express');
+const router = express.Router();
+
+router.get('/mostrar',Validar, esquemaController.obtenerEsquema);
+
+module.exports = router;
+```
+
+En middlewares/Validar.js
+```js
+const Validar = (req,res,next)=>{
+  try{
+    if(iniciosession){
+      return next();
+    }else{
+      throw new Error("No ha iniciado sesion");
+    }
+  }catch(e){
+    console.log(e);
+  }
+}
+```
+> next( ) pasa a la siguiente ruta, en este caso, esquemaController.obtenerEsquema
