@@ -735,3 +735,309 @@ const Validar = (req,res,next)=>{
 }
 ```
 > next( ) pasa a la siguiente ruta, en este caso, esquemaController.obtenerEsquema
+---
+## Login y Registro
+### En index.js
+```js
+const express= require('express');
+const app = express();
+require('./dataBase');
+const { create } = require("express-handlebars");
+
+app.set('port', process.env.PORT || 5000);
+
+const hbs = create({ 
+  extname: ".hbs";
+});
+
+app.engine(".hbs",hbs.engine);
+app.set("view engine",".hbs");
+app.set("views", "./views");
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+app.use("/auth", require('.routes/authRoutes'));
+
+
+app.listen(app.get('port'), ()=>{
+    console.log("Puerto ",app.get('port'));
+})
+```
+
+### Dentro de la carpeta views.
+
+En Registro.hbs
+```hbs
+    <h1>Registro</h1>
+    <form action="/auth/register" method="post">
+        <input type="text"
+            name="name"
+            placeholder="Yeclea tu nombre">
+        <input type="email"
+            name="email"
+            placeholder="Yeclea tu email">
+        <input type="password"
+            name="password"
+            placeholder="Teclea tu contraseña">
+        <input type="password"
+            name="password2"
+            placeholder="Teclea nuevamente tu contraseña">
+
+        <input type="submit" value="Registrar">
+    </form>
+```
+En Login.hbs
+```hbs
+    <h1>Login</h1>
+    <form action="/auth/login" method="post">
+        <input type="email"
+            name="email"
+            placeholder="Yeclea tu email">
+        <input type="password"
+            name="password"
+            placeholder="Teclea tu contraseña">
+
+        <input type="submit" value="Registrar">
+    </form>
+```
+
+### Dentro de la carpeta routes
+En authRoutes.js
+```js
+const express=require("express");
+const ruta=express.Router();
+const {formLogin, formRegistro}=require("../controllers/authControllers");
+
+ruta.get("/login", formLogin);
+ruta.get("/register", formRegistro);
+ruta.post("/register", registrarUsuario);
+ruta.post("/confirmar/:token", confirmarCuenta)
+
+module.exports=ruta;
+```
+### Dentro de la carpeta controllers
+
+En authController.js
+```js
+const User = require("../models/User");
+const {nanoid}= require("nanoid"); //Genera ids aleatorios, requiere instalación
+
+const formRegistro=(req,res)=>{
+  res.render("Registro");
+}
+const registrarUsuario= async(req,res)=>{
+  const {name, email, password} = req.body;
+  try{
+    let user = await User.findOne({"email": email});
+    if (user) throw new Error("El usuario ya existe");
+
+    user = new User({name, email, password, tokenConfirm: nanoid()});
+    await user.save();
+    //res.redirect("/login"); Redirecciona a Login.hbs
+    res.render("/Login");
+  }catch(error){
+    res.json({error: error.message});
+  }
+}
+
+const confirmarCuenta= async (req,res)=>{
+  const {token}=req.params;
+  try{
+    const user = await User.findOne({tokenConfirm: token});
+    if(!user) throw new Error("No existe el usuario");
+    user.cuentaConfirmada=true;
+    user.tokenConfirm=null;
+    res.json(user);
+  }catch(error){
+    res.json({error: error.message});
+  }
+}
+
+const loginUser= async (req,res)=>{
+  const {email, password}= req.body;
+  try{
+    const user = await User.findOne({email});
+
+    if(!user) throw new Error("El correo no esta registrado");
+    
+    if(!user.cuentaConfirmada) throw new Error("Su cuenta aun no esta activada");
+
+    if(!(await user.comparePassword(password))) throw new Error("La contraseña no es correcta");
+
+    res.redirect("/home");
+  }catch(err){
+    console.log(err);
+    res.send(error.message);
+  }
+}
+
+const formLogin=(req,res)=>{
+  res.render("Login");
+}
+module.exports={
+  formRegistro,
+  formLogin,
+  registrarUsuario,
+  confirmarCuenta
+}
+```
+
+### Dentro del la carpeta dataBase
+
+En db.js
+```js
+const mongoose = require("mongoose");
+
+mongoose.connect(process.env.URLMongoDB)
+  .then(()=> console.log("Base de datos conectada"))
+  .catch((err)=> console.log("Fallo la conexión: "+err));
+```
+
+### Dentro de la carpeta models
+
+En User.js
+```js
+const {Schema, model} = require('mongoose');
+const bcrypt = require("bcryptjs"); //Sirve para hashear las contraseñas (seguridad). requiere instalación
+const userSchema = mongoose.Schema({
+  name:{
+    type: String,
+    required: true
+  },
+  email:{
+    type: String,
+    required: true,
+    unique: true
+  },
+  password:{
+    type: String,
+    required: true
+  },
+  tokenConfirm:{
+    type: String,
+    default: null
+  },
+  cuentaConfirmada:{
+    type: Boolean,
+    default: false
+  }
+});
+
+userSchema.pre("save", async function(next){
+  const user = this;
+  if(!user.isModified("password")) return next();
+
+  try{
+    const salt = await bcrypt.getSalt(10); //cantidad de saltos
+    const hash = await bcrypt.hash(user.password, salt); //Contraseña hasheada
+
+    user.password = hash;
+    next();
+  }catch(err){
+    next();
+  }
+});
+
+userSchema.methods.comparePassword = async function (evalPassword) {
+  return await bcrypt.compare(evalPassword, this.password);
+}
+
+module.exports= model('User', userSchema);
+```
+---
+## Sesión y flash con Express
+
+**express session:** El middleware express-session almacena los datos de sesión en el servidor; sólo guarda el ID de sesión en la propia cookie, no los datos de sesión. De forma predeterminada, utiliza el almacenamiento en memoria y no está diseñado para un entorno de producción.
+
+**connect flash:** El flash es un área especial de la sesión que se utiliza para almacenar mensajes. Los mensajes se escriben en la memoria flash y se borran después de mostrarse al usuario. El flash generalmente se usa en combinación con redireccionamientos, lo que garantiza que el mensaje esté disponible para la siguiente página que se va a representar.
+
+### Instalación
+
+```bash
+npm i express-session
+npm i connect-flash
+```
+
+### Session
+En index.js
+```js
+const expSession = require("express-session");
+
+app.use(
+  expSession({
+    secret: "palabra clave",
+    resave: false,
+    saveUninitialized: false,
+    name: "nombre-secreto"
+  })
+);
+
+app.get("/ruta-protegida", (req,res)=>{
+  res.json(req.expSession.usuario || "Sin session de usuario");
+});
+
+app.get("/crear-session", (req,res)=>{
+  req.expSession.usuario = "bluuweb";
+  res.redirect("/ruta-protegida");
+});
+
+app.get("/destruir-session", (req,res)=>{
+  req.expSession.destroy();
+  res.redirect("/ruta-protegida");
+});
+```
+
+### Flash
+```js
+const flash = require("connect-flash");
+
+app.use(flash());
+
+app.get("/mensaje-flash", (req, res) => {
+    res.json(req.flash("mensaje"));
+});
+
+app.get("/crear-mensaje", (req, res) => {
+    req.flash("mensaje", "El mensaje a mostrar es este");
+    res.redirect("/mensaje-flash");
+});
+```
+---
+## Validaciones con express
+
+### Instalación
+```bash
+npm i express-validator
+```
+
+### Uso
+
+En routes/auth.js
+```js
+const {body} = require("express-validator");
+
+ruta.post("/registro",[
+  body("name","Ingrese un nombre valido").trim().notEmpty().escape(),
+  body("email","Ingrese un correo valido").trim().isEmail().normalizeEmail(),
+  body("password","Contraseña apartir de 8 caracteres").trim().isLenght({ min:8 }).escape().custom((value,{req})=>{
+    if (value !== req.body.password2){
+      throw new Error("No coinciden las contraseñas");
+    } else {
+      return value;
+    }
+  })
+], userRegister);
+```
+
+En controllers/authControllers.js
+```js
+const {validationResult} = require("express-validator");
+
+const userRegister = async (req,res)=>{
+  const errores = validationResult(req);
+  if (!errores.isEmpty()){
+    return res.json(errores);
+  }
+}
+```
