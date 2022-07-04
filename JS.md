@@ -690,7 +690,58 @@ array1.forEach((element) => console.log(element));
 // Devuelve: "b"
 // Devuelve: "c"
 ```
+**map( );** Ejecuta la funcion indicada una vez por cada elemento del array y los retorna en un nuevo array.
 
+```js
+const array1 = [1, 12, 31];
+
+array1.map((element) => element*2);
+
+// Devuelve: 2
+// Devuelve: 24
+// Devuelve: 62
+```
+**find( );** Ejecuta la funcion indicada una vez por cada elemento del array y retorna el valor que concuerde con la condición.
+```js
+const array1 = [1, 12, 31];
+
+array1.find((element) => element===12);
+
+// Devuelve: 12
+```
+**findIndex( );** Ejecuta la funcion indicada una vez por cada elemento del array y retorna la pocicion del valor que coincida con la condición.
+```js
+const array1 = [1, 12, 31];
+
+array1.findIndex((element) => element===12);
+
+// Devuelve: 12
+```
+**fill( );** Recorre y rellena los espacios de un array con un solo valor.
+```js
+const array1 = New Array(4);
+
+array1.fill((element) => element===40);
+
+// Devuelve: [40,40,40,40,40]
+```
+**every( );** Recorre todos los valores y devuelve false si todos no cumplen con la condición.
+```js
+const array1 = ['OK','OK','X','OK'];
+
+array1.every((element) => element==='OK');
+
+// Devuelve: false
+```
+
+**some( );** Recorre todos los valores y devuelve true si encuentra una coincidencia con la condicion.
+```js
+const array1 = ['OK','OK','X','OK'];
+
+array1.some((element) => element==='X');
+
+// Devuelve: true
+```
 ---
 
 ## Metodos matematicos
